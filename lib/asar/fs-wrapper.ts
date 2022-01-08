@@ -751,8 +751,15 @@ export const wrapFsWithAsar = (fs: Record<string, any>) => {
     if (!archive) return -34;
 
     // -ENOENT
-    const stats = archive.stat(filePath);
+    let stats = archive.stat(filePath);
     if (!stats) return -34;
+
+    if (stats.isLink) {
+      const realpath = archive.realpath(filePath);
+      if (!realpath) return -34;
+      stats = archive.stat(realpath);
+      if (!stats) return -34;
+    }
 
     return (stats.isDirectory) ? 1 : 0;
   };

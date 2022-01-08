@@ -38,7 +38,8 @@ const char kSeparators[] = "/";
 
 bool GetNodeFromPath(std::string path,
                      const base::DictionaryValue* root,
-                     const base::DictionaryValue** out);
+                     const base::DictionaryValue** out,
+                     std::string* realPath = nullptr);
 
 // Gets the "files" from "dir".
 bool GetFilesNode(const base::DictionaryValue* root,
@@ -74,10 +75,18 @@ bool GetChildNode(const base::DictionaryValue* root,
 // Gets the node of "path" from "root".
 bool GetNodeFromPath(std::string path,
                      const base::DictionaryValue* root,
-                     const base::DictionaryValue** out) {
+                     const base::DictionaryValue** out,
+                     std::string* realPath) {
   if (path.empty()) {
     *out = root;
     return true;
+  }
+
+  if (realPath != nullptr) {
+    std::string linkPart;
+    if (root->GetString("link", &linkPart)) {
+      *realPath = linkPart;
+    }
   }
 
   const base::DictionaryValue* dir = root;
@@ -88,11 +97,36 @@ bool GetNodeFromPath(std::string path,
     if (!GetChildNode(root, path.substr(0, delimiter_position), dir, &child))
       return false;
 
+    if (realPath != nullptr) {
+      std::string linkPart;
+      if (child->GetString("link", &linkPart)) {
+        *realPath = linkPart;
+      } else {
+        if (!realPath->empty())
+          realPath->append("/");
+        realPath->append(path.substr(0, delimiter_position));
+      }
+    }
+
     dir = child;
     path.erase(0, delimiter_position + 1);
   }
 
-  return GetChildNode(root, path, dir, out);
+  if (!GetChildNode(root, path, dir, out))
+    return false;
+
+  if (realPath != nullptr) {
+    std::string linkPart;
+    if ((**out).GetString("link", &linkPart)) {
+      *realPath = linkPart;
+    } else {
+      if (!realPath->empty())
+        realPath->append("/");
+      realPath->append(path);
+    }
+  }
+
+  return true;
 }
 
 bool FillFileInfoWithNode(Archive::FileInfo* info,
@@ -351,9 +385,16 @@ bool Archive::Realpath(const base::FilePath& path,
   if (!header_)
     return false;
 
+  std::string realpathBuf;
   const base::DictionaryValue* node;
-  if (!GetNodeFromPath(path.AsUTF8Unsafe(), header_.get(), &node))
+  if (!GetNodeFromPath(path.AsUTF8Unsafe(), header_.get(), &node, &realpathBuf))
     return false;
+
+  LOG(WARNING) << "realpathBuf is now: '" << realpathBuf << "'";
+
+  *realpath = base::FilePath::FromUTF8Unsafe(realpathBuf);
+  return true;
+  /*
 
   std::string link;
   if (node->GetString("link", &link)) {
@@ -363,6 +404,7 @@ bool Archive::Realpath(const base::FilePath& path,
 
   *realpath = path;
   return true;
+  */
 }
 
 bool Archive::CopyFileOut(const base::FilePath& path, base::FilePath* out) {
