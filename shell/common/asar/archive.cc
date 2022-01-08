@@ -390,21 +390,8 @@ bool Archive::Realpath(const base::FilePath& path,
   if (!GetNodeFromPath(path.AsUTF8Unsafe(), header_.get(), &node, &realpathBuf))
     return false;
 
-  LOG(WARNING) << "realpathBuf is now: '" << realpathBuf << "'";
-
   *realpath = base::FilePath::FromUTF8Unsafe(realpathBuf);
   return true;
-  /*
-
-  std::string link;
-  if (node->GetString("link", &link)) {
-    *realpath = base::FilePath::FromUTF8Unsafe(link);
-    return true;
-  }
-
-  *realpath = path;
-  return true;
-  */
 }
 
 bool Archive::CopyFileOut(const base::FilePath& path, base::FilePath* out) {
